@@ -45,7 +45,7 @@ def chat():
     payload = {
         "model": "openai/gpt-4o-mini",
         "messages": [
-            {"role": "system", "content": "You are Jarvis, a friendly AI assistant."},
+            {"role": "system", "content": "You are Daffodils Ai, a friendly AI assistant."},
             {"role": "user", "content": f"{user_message}\nInstruction: {response_style}"}
         ]
     }
@@ -63,3 +63,4 @@ def chat():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
