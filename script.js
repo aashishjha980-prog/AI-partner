@@ -1,35 +1,71 @@
-const sendBtn = document.getElementById("sendBtn");
-const userInput = document.getElementById("userInput");
-const chatBox = document.getElementById("chatBox");
+document.addEventListener("DOMContentLoaded", () => {
+    const chatBox = document.getElementById("chatBox");
+    const input = document.getElementById("userInput");
+    const sendBtn = document.getElementById("sendBtn");
 
-sendBtn.onclick = async () => {
-  const message = userInput.value.trim();
-  if (!message) return;
+ function addMessage(message, sender = "bot") {
+    const div = document.createElement("div");
+    div.classList.add("message", sender);
 
-  addMessage("user", message);
-  userInput.value = "";
+    if (sender === "bot" && message.includes(":")) {
+        const lines = message.split(/\d+\.\s/).filter(l => l.trim() !== "");
+        const ol = document.createElement("ol");
+        ol.style.paddingLeft = "20px";
 
-  addMessage("bot", "Thinking...");
+        lines.forEach(line => {
+            const li = document.createElement("li");
+            li.style.marginBottom = "10px"; // spacing between points
 
-  try {
-    const res = await fetch("/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message })
-    });
+            const [topic, ...desc] = line.split(":");
 
-    const data = await res.json();
-    document.querySelector(".bot:last-child").textContent = data.reply;
-  } catch (err) {
-    document.querySelector(".bot:last-child").textContent = "❌ Error connecting to server.";
-    console.error(err);
-  }
-};
+            // remove ** from topic
+            let cleanTopic = topic.trim().replace(/\*\*/g, "");
 
-function addMessage(role, text) {
-  const div = document.createElement("div");
-  div.classList.add("message", role);
-  div.textContent = text;
-  chatBox.appendChild(div);
-  chatBox.scrollTop = chatBox.scrollHeight;
+            const spanTopic = document.createElement("span");
+            spanTopic.textContent = cleanTopic;
+            spanTopic.style.fontWeight = "bold";
+            spanTopic.style.color = "yellow"; // yellow text color
+
+            li.appendChild(spanTopic);
+            li.appendChild(document.createTextNode(": " + desc.join(":").trim()));
+            ol.appendChild(li);
+        });
+
+        div.appendChild(ol);
+    } else {
+        div.textContent = message;
+    }
+
+    chatBox.appendChild(div);
+    chatBox.scrollTop = chatBox.scrollHeight;
 }
+
+
+
+    async function sendMessage() {
+        const message = input.value.trim();
+        if (!message) return;
+
+        addMessage(message, "user");
+        input.value = "";
+
+        try {
+            const res = await fetch("/chat", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({message})
+            });
+
+            const data = await res.json();
+            addMessage(data.reply, "bot");
+        } catch (err) {
+            console.error(err);
+            addMessage("❌ Error connecting to server.", "bot");
+        }
+    }
+
+    sendBtn.addEventListener("click", sendMessage);
+    input.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") sendMessage();
+    });
+});
