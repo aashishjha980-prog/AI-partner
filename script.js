@@ -2,10 +2,10 @@ const chatBox = document.getElementById("chatBox");
 const userInput = document.getElementById("userInput");
 const sendBtn = document.getElementById("sendBtn");
 
-// send button click
+// Send button click
 sendBtn.addEventListener("click", sendMessage);
 
-// enter key press
+// Enter key press
 userInput.addEventListener("keypress", function(e) {
     if (e.key === "Enter") sendMessage();
 });
@@ -30,95 +30,72 @@ function addMessage(message, sender = "bot") {
     const div = document.createElement("div");
     div.classList.add("message", sender);
 
-    // points formatting - only for bot messages that look like numbered lists
-    if (sender === "bot" && message.match(/^\d+\./m)) {
+    if (sender === "bot") {
+        // Split into lines
         const lines = message.split(/\n/).filter(l => l.trim() !== "");
-        const ol = document.createElement("ol");
-        ol.style.paddingLeft = "20px";
 
-        lines.forEach((line) => {
-            const li = document.createElement("li");
-            li.style.marginBottom = "10px";
+        let ol = null;
+        let hasNumberedTopics = false;
 
-            // remove ** from GPT and trim
-            line = line.replace(/\*\*/g, "").trim();
-
-            // Remove the existing number prefix (like "1. ", "2. ") since <ol> will auto-number
-            const numberedMatch = line.match(/^\d+\.\s*(.*)$/);
-            if (numberedMatch) {
-                line = numberedMatch[1]; // Keep only the content after the number
+        // Check if there are lines with colon (topics)
+        lines.forEach(line => {
+            const cleanLine = line.replace(/\*\*/g, "").trim();
+            if (cleanLine.includes(":") && /^\d+\./.test(line)) {
+                hasNumberedTopics = true;
             }
-
-            // split topic and description with yellow highlighting
-            const colonIndex = line.indexOf(":");
-            if (colonIndex !== -1) {
-                const topic = line.substring(0, colonIndex);
-                const description = line.substring(colonIndex + 1);
-                
-                const spanTopic = document.createElement("span");
-                spanTopic.textContent = topic.trim();
-                spanTopic.style.fontWeight = "bold";
-                spanTopic.style.color = "yellow";
-                
-                li.appendChild(spanTopic);
-                li.appendChild(document.createTextNode(": " + description.trim()));
-            } else {
-                // No colon found, just add the text
-                li.textContent = line;
-            }
-
-            ol.appendChild(li);
         });
 
-        div.appendChild(ol);
-    } else if (sender === "bot" && message.includes(":")) {
-        // For non-numbered messages with colons, still apply yellow styling
-        const lines = message.split(/\n/).filter(l => l.trim() !== "");
-        
-        if (lines.length > 1) {
-            // Multiple lines with colons
-            lines.forEach(line => {
-                const lineDiv = document.createElement("div");
-                lineDiv.style.marginBottom = "10px";
+        if (hasNumberedTopics) {
+            ol = document.createElement("ol");
+            ol.style.paddingLeft = "20px";
+        }
+
+        lines.forEach((line) => {
+            const cleanLine = line.replace(/\*\*/g, "").trim();
+            
+            // Check if this is a numbered topic line (has number and colon)
+            const numberedMatch = line.match(/^(\d+)\.\s*(.*)$/);
+            const hasColon = cleanLine.includes(":");
+            
+            if (numberedMatch && hasColon && ol) {
+                // This is a numbered topic line - add to ordered list
+                const li = document.createElement("li");
+                li.style.marginBottom = "10px";
                 
-                const colonIndex = line.indexOf(":");
+                const content = numberedMatch[2]; // Content after the number
+
+                // Split topic and description at the first colon
+                const colonIndex = content.indexOf(":");
                 if (colonIndex !== -1) {
-                    const topic = line.substring(0, colonIndex);
-                    const description = line.substring(colonIndex + 1);
+                    const topic = content.substring(0, colonIndex).trim();
+                    const description = content.substring(colonIndex + 1).trim();
                     
                     const spanTopic = document.createElement("span");
-                    spanTopic.textContent = topic.trim();
+                    spanTopic.textContent = topic;
                     spanTopic.style.fontWeight = "bold";
                     spanTopic.style.color = "yellow";
                     
-                    lineDiv.appendChild(spanTopic);
-                    lineDiv.appendChild(document.createTextNode(": " + description.trim()));
+                    li.appendChild(spanTopic);
+                    li.appendChild(document.createTextNode(": " + description));
                 } else {
-                    lineDiv.textContent = line;
+                    li.textContent = content;
                 }
-                
-                div.appendChild(lineDiv);
-            });
-        } else {
-            // Single line with colon
-            const colonIndex = message.indexOf(":");
-            if (colonIndex !== -1) {
-                const topic = message.substring(0, colonIndex);
-                const description = message.substring(colonIndex + 1);
-                
-                const spanTopic = document.createElement("span");
-                spanTopic.textContent = topic.trim();
-                spanTopic.style.fontWeight = "bold";
-                spanTopic.style.color = "yellow";
-                
-                div.appendChild(spanTopic);
-                div.appendChild(document.createTextNode(": " + description.trim()));
+                ol.appendChild(li);
             } else {
-                div.textContent = message;
+                // This is regular text (headings, descriptions, etc) - no numbering
+                const lineDiv = document.createElement("div");
+                lineDiv.style.marginBottom = "10px";
+                lineDiv.textContent = cleanLine;
+                div.appendChild(lineDiv);
             }
+        });
+
+        // Add the ordered list to the div if it has items
+        if (ol && ol.children.length > 0) {
+            div.appendChild(ol);
         }
     } else {
-        // normal text for bot or user
+        // User message
         div.textContent = message;
     }
 
