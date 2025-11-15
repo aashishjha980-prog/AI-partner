@@ -25,41 +25,43 @@ def chat():
     if not user_message:
         return jsonify({"reply": "Please type something first!"})
 
-    # Normalize message
     msg_clean = user_message.lower().translate(str.maketrans('', '', string.punctuation))
 
-    # ---------- 1️⃣ Special handler for "about yourself" ----------
-    creator_words = [
-        "made", "create", "built", "code", "program", "designed", "develop", 
-        "train", "implement", "author", "engineer", "supervise", "maintain", 
-        "manage", "run", "control", "fund", "own", "owner", "developer", 
-        "creator", "yourself", "about yourself"
-    ]
-
-    if any(word in msg_clean for word in creator_words):
+    # -------------------- 1️⃣ Special handler: About Yourself --------------------
+    about_keywords = ["yourself", "about yourself"]
+    if any(word in msg_clean for word in about_keywords):
         reply_points = [
-            "AI Name: I am Daffodils AI, made by Aashish Jha",
-            "Capabilities: I can answer questions in points and paragraphs",
-            "Support: I can provide answers to almost any question and even support you",
-            "Purpose: My purpose is to make your tasks easier and simpler",
-            "Prompt: Ask me anything!"
+            "I am Daffodils AI, made by Aashish Jha Production",
+            "I can answer questions in points and paragraphs",
+            "I can provide answers to almost any question and even support you",
+            "My purpose is to make your tasks easier and simpler",
+            "Ask me anything!"
         ]
         reply = "\n".join([f"{i+1}. {p}" for i, p in enumerate(reply_points)])
         return jsonify({"reply": reply})
 
-    # ---------- 2️⃣ Decide response style ----------
+    # -------------------- 2️⃣ Special handler: Who Made You --------------------
+    who_keywords = [
+        "who made", "who created", "who developed", "who mde", "who mafe", "who amde",
+        "who mde you", "who mafe you", "who amde you"
+    ]
+    if any(word in msg_clean for word in who_keywords):
+        reply = "I am made by Aashish Jha Production."
+        return jsonify({"reply": reply})
+
+    # -------------------- 3️⃣ Decide response style --------------------
     response_style = "Answer naturally with proper formatting."
     points_mode = False
-    if "points" in msg_clean or "list" in msg_clean:
+    if any(word in msg_clean for word in ["points", "list", "recipe", "step"]):
         points_mode = True
-        response_style = "Answer in clean numbered points, with topics before colon, e.g.:\n1. Topic: Description\n2. Topic: Description\n..."
+        response_style = "Answer in clean numbered points where EACH point follows this format: 'Number. Topic: Description'. Combine the topic and description in one line. Example:\n1. Early Life: Born on June 28, 1971, in Pretoria, South Africa.\n2. Education: Attended Queen's University and University of Pennsylvania.\n3. Career: Co-founded Zip2 and PayPal. Always put the topic before colon and description after colon."
 
     elif "short" in msg_clean:
         response_style = "Answer concisely in 1-3 lines."
     elif "paragraph" in msg_clean:
         response_style = "Answer in 2-3 paragraphs."
 
-    # ---------- 3️⃣ GPT request ----------
+    # -------------------- 4️⃣ Prepare GPT request --------------------
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json"
@@ -73,30 +75,63 @@ def chat():
         ]
     }
 
+    # -------------------- 5️⃣ Call GPT API --------------------
     try:
         r = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=30)
         r.raise_for_status()
         reply = r.json()["choices"][0]["message"]["content"]
 
-        # ---------- 4️⃣ Optional cleanup for points ----------
+        # -------------------- 6️⃣ Cleanup points --------------------
         if points_mode:
             lines = [line.strip("-• ") for line in reply.splitlines() if line.strip()]
-            cleaned_lines = []
-            for line in lines:
-                # Remove ** markers from GPT
-                line = line.replace("**", "").strip()
-
-                # Remove double numbering (e.g., 1. 1. Topic: ...)
-                numbered_match = line.lstrip().split(". ", 1)
-                if len(numbered_match) == 2 and numbered_match[0].isdigit():
-                    line = numbered_match[1].strip()
-
-                cleaned_lines.append(line)
-
-            # Reconstruct numbered points
-            reply = ""
-            for i, line in enumerate(cleaned_lines, 1):
-                reply += f"{i}. {line}\n"
+            
+            # Group related lines together (topic + description)
+            formatted_lines = []
+            i = 0
+            while i < len(lines):
+                current_line = lines[i]
+                
+                # Remove any existing numbering from the line
+                if "." in current_line[:5]:
+                    parts = current_line.split(".", 1)
+                    if len(parts) > 1:
+                        current_line = parts[1].strip()
+                
+                # If this line looks like a topic (short, ends with colon or is a heading)
+                if (len(current_line) < 50 and 
+                    (current_line.endswith(':') or 
+                     current_line.istitle() or 
+                     any(word in current_line.lower() for word in ['life', 'education', 'career', 'foundation', 'venture', 'company', 'background', 'personal']))):
+                    
+                    # Try to combine with next line if it exists and looks like a description
+                    if i + 1 < len(lines) and (lines[i + 1].endswith('.') or len(lines[i + 1]) > 30):
+                        next_line = lines[i + 1]
+                        # Remove numbering from next line too
+                        if "." in next_line[:5]:
+                            parts = next_line.split(".", 1)
+                            if len(parts) > 1:
+                                next_line = parts[1].strip()
+                        
+                        # Add colon if not present in current line
+                        if not current_line.endswith(':'):
+                            current_line += ':'
+                        
+                        combined_line = f"{current_line} {next_line}"
+                        formatted_lines.append(combined_line)
+                        i += 2  # Skip next line since we combined it
+                    else:
+                        formatted_lines.append(current_line)
+                        i += 1
+                else:
+                    formatted_lines.append(current_line)
+                    i += 1
+            
+            # Number the formatted lines properly
+            numbered_lines = []
+            for idx, line in enumerate(formatted_lines, 1):
+                numbered_lines.append(f"{idx}. {line}")
+            
+            reply = "\n".join(numbered_lines)
 
     except Exception as e:
         print("Error:", e)
@@ -104,7 +139,7 @@ def chat():
 
     return jsonify({"reply": reply})
 
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
-
